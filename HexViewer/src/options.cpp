@@ -555,13 +555,13 @@ LRESULT CALLBACK OptionsWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 
         int delta = GET_WHEEL_DELTA_WPARAM(wParam);
         int maxVisibleItems = 3;
-        int maxScroll = std::max(0, (int)data->languages.size() - maxVisibleItems);
+        int maxScroll = std::clamp((int)data->languages.size() - maxVisibleItems, 0, INT_MAX);
 
         if (delta > 0) {
-          data->dropdownScrollOffset = std::max(0, data->dropdownScrollOffset - 1);
+          data->dropdownScrollOffset = std::clamp(data->dropdownScrollOffset - 1, 0, maxScroll);
         }
         else {
-          data->dropdownScrollOffset = std::min(maxScroll, data->dropdownScrollOffset + 1);
+          data->dropdownScrollOffset = std::clamp(data->dropdownScrollOffset + 1, 0, maxScroll);
         }
 
         UpdateHoverState(data, data->mouseX, data->mouseY, rect.right, rect.bottom);
@@ -769,8 +769,8 @@ void ProcessOptionsEvent(OptionsDialogData* data, XEvent* event, int width, int 
     else if (event->xbutton.button == Button4) { // Scroll up
       if (data->dropdownOpen) {
         int maxVisibleItems = 3;
-        int maxScroll = std::max(0, (int)data->languages.size() - maxVisibleItems);
-        data->dropdownScrollOffset = std::max(0, data->dropdownScrollOffset - 1);
+        int maxScroll = std::clamp((int)data->languages.size() - maxVisibleItems, 0, INT_MAX);
+        data->dropdownScrollOffset = std::clamp(data->dropdownScrollOffset - 1, 0, maxScroll);
         UpdateHoverState(data, data->mouseX, data->mouseY, width, height);
         RenderOptionsDialog(data, width, height);
       }
@@ -778,8 +778,8 @@ void ProcessOptionsEvent(OptionsDialogData* data, XEvent* event, int width, int 
     else if (event->xbutton.button == Button5) { // Scroll down
       if (data->dropdownOpen) {
         int maxVisibleItems = 3;
-        int maxScroll = std::max(0, (int)data->languages.size() - maxVisibleItems);
-        data->dropdownScrollOffset = std::min(maxScroll, data->dropdownScrollOffset + 1);
+        int maxScroll = std::clamp((int)data->languages.size() - maxVisibleItems, 0, INT_MAX);
+        data->dropdownScrollOffset = std::clamp(data->dropdownScrollOffset + 1, 0, maxScroll);
         UpdateHoverState(data, data->mouseX, data->mouseY, width, height);
         RenderOptionsDialog(data, width, height);
       }

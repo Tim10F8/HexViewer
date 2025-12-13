@@ -3,9 +3,6 @@
 
 #include <chrono>
 #include <thread>
-#include "render.h"
-#include "update.h"
-#include "darkmode.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -16,6 +13,10 @@ typedef void* NativeWindow;
 #include <X11/Xlib.h>
 typedef Window NativeWindow;
 #endif
+
+#include <render.h>
+#include <update.h>
+#include <darkmode.h>
 
 class AboutDialog {
 public:

@@ -4,13 +4,7 @@
 #include <algorithm>
 #include <thread>
 #include <chrono>
-
-#include "render.h"
-#include "options.h"
-#include "HexData.h"
-#include "searchdialog.h"
-#include "menu.h"
-#include "language.h"
+#include <codecvt>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -23,14 +17,20 @@
 #import <Cocoa/Cocoa.h>
 #import <OpenGL/gl.h>
 #else
-
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #endif
+
 #include <about.h>
 #include <darkmode.h>
-#include <codecvt>
+#include <render.h>
+#include <options.h>
+#include <HexData.h>
+#include <searchdialog.h>
+#include <menu.h>
+#include <language.h>
+
 
 RenderManager* renderManager = nullptr;
 HexData* hexData = nullptr;
@@ -50,6 +50,11 @@ size_t editingOffset = (size_t)-1;
 std::string editBuffer;
 int editingRow = -1;
 int editingCol = -1;
+long long cursorBytePos = -1;      
+int cursorNibblePos = 0;         
+long long selectionLength = 0;
+bool caretVisible = true;
+uintptr_t caretTimerId = 0;
 
 #ifdef _WIN32
 AppOptions g_options = { true, 16, false, false, "English" };
@@ -72,7 +77,7 @@ void LoadFileFromPath(const char* filepath);
 void SaveFile();
 void SaveFileAs();
 void UpdateScrollbar(int windowWidth, int windowHeight);
-size_t GetByteOffsetFromClick(int x, int y, int* outRow, int* outCol, int windowWidth, int windowHeight);
+size_t GetByteOffsetFromClick(int x, int y, int* outRow, int* outCol, int windowWidth, int windowHeight, int* outNibblePos);
 int CalculateBytesPerLine(int windowWidth);
 
 #ifdef _WIN32
@@ -293,7 +298,7 @@ void ShowOptionsDialog() {
 
     if (oldOptions.language != g_options.language) {
       Translations::SetLanguage(g_options.language);
-      RebuildMenuBar();  // Rebuild menu with new translations
+      RebuildMenuBar();
       needsRedraw = true;
     }
 
@@ -397,6 +402,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
   case WM_CREATE:
     g_hWnd = hWnd;
     DragAcceptFiles(hWnd, TRUE);
+    caretTimerId = SetTimer(hWnd, 1, 500, NULL);
     break;
 
   case WM_ERASEBKGND:
@@ -433,12 +439,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
     }
     break;
   }
+  case WM_TIMER: {
+    if (wParam == 1 && cursorBytePos != -1) {
+      caretVisible = !caretVisible;
+      InvalidateRect(hWnd, NULL, FALSE);
+    }
+    break;
+  }
   case WM_CHAR: {
     char ch = (char)wParam;
 
-    if (editingOffset != (size_t)-1) {
-      if (ch == VK_BACK && !editBuffer.empty()) {
-        editBuffer.pop_back();
+    if (editingOffset != (size_t)-1 && cursorBytePos != -1) {
+      if (ch == VK_BACK) {
+        if (cursorNibblePos == 1) {
+          cursorNibblePos = 0;
+        }
+        else if (cursorBytePos > 0) {
+          cursorBytePos--;
+          editingOffset--;
+          cursorNibblePos = 1;
+          editingCol--;
+          if (editingCol < 0) {
+            editingCol = hexData->getCurrentBytesPerLine() - 1;
+            editingRow--;
+          }
+        }
+        editBuffer.clear();
+        caretVisible = true;
         InvalidateRect(hWnd, NULL, FALSE);
         return 0;
       }
@@ -448,6 +475,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         editBuffer.clear();
         editingRow = -1;
         editingCol = -1;
+        cursorBytePos = -1;
+        cursorNibblePos = 0;
         InvalidateRect(hWnd, NULL, FALSE);
         return 0;
       }
@@ -457,27 +486,41 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
           ch = ch - 'a' + 'A';
         }
 
-        editBuffer += ch;
+        uint8_t currentByte = 0;
+        if (editingOffset < hexData->getFileSize()) {
+          currentByte = hexData->readByte(editingOffset);
+        }
 
-        if (editBuffer.length() == 2) {
-          uint8_t newValue = (uint8_t)strtol(editBuffer.c_str(), nullptr, 16);
-          hexData->editByte(editingOffset, newValue);
+        uint8_t newByte;
 
-          editingOffset++;
-          if (editingOffset >= hexData->getFileSize()) {
-            editingOffset = (size_t)-1;
-            editingRow = -1;
-            editingCol = -1;
-          }
-          else {
+        if (cursorNibblePos == 0) {
+          uint8_t newNibble = (ch >= 'A') ? (ch - 'A' + 10) : (ch - '0');
+          newByte = (newNibble << 4) | (currentByte & 0x0F);
+
+          hexData->editByte(editingOffset, newByte);
+          cursorNibblePos = 1;
+        }
+        else {
+          uint8_t newNibble = (ch >= 'A') ? (ch - 'A' + 10) : (ch - '0');
+          newByte = (currentByte & 0xF0) | newNibble;
+
+          hexData->editByte(editingOffset, newByte);
+
+          if (editingOffset + 1 < hexData->getFileSize()) {
+            editingOffset++;
+            cursorBytePos++;
+            cursorNibblePos = 0;
             editingCol++;
+
             if (editingCol >= hexData->getCurrentBytesPerLine()) {
               editingCol = 0;
               editingRow++;
             }
           }
-          editBuffer.clear();
         }
+
+        editBuffer.clear();
+        caretVisible = true;
         InvalidateRect(hWnd, NULL, FALSE);
         return 0;
       }
@@ -522,45 +565,90 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
       editBuffer.clear();
       editingRow = -1;
       editingCol = -1;
+      cursorBytePos = -1;
+      cursorNibblePos = 0;
       InvalidateRect(hWnd, NULL, FALSE);
       return 0;
     }
 
-    if (editingOffset != (size_t)-1) {
+    if (cursorBytePos != -1 && editingOffset != (size_t)-1) {
       bool moved = false;
       int bytesPerLine = hexData->getCurrentBytesPerLine();
+      long long totalBytes = hexData->getFileSize();
 
-      if (wParam == VK_RIGHT && editingOffset + 1 < hexData->getFileSize()) {
-        editingOffset++;
-        editingCol++;
-        if (editingCol >= bytesPerLine) {
-          editingCol = 0;
-          editingRow++;
+      if (wParam == VK_RIGHT) {
+        if (cursorNibblePos == 0) {
+          cursorNibblePos = 1;
+          moved = true;
         }
-        moved = true;
-      }
-      else if (wParam == VK_LEFT && editingOffset > 0) {
-        editingOffset--;
-        editingCol--;
-        if (editingCol < 0) {
-          editingCol = bytesPerLine - 1;
-          editingRow--;
+        else if (cursorBytePos + 1 < totalBytes) {
+          cursorBytePos++;
+          editingOffset++;
+          cursorNibblePos = 0;
+          editingCol++;
+          if (editingCol >= bytesPerLine) {
+            editingCol = 0;
+            editingRow++;
+          }
+          moved = true;
         }
-        moved = true;
       }
-      else if (wParam == VK_DOWN && editingOffset + bytesPerLine < hexData->getFileSize()) {
+      else if (wParam == VK_LEFT) {
+        if (cursorNibblePos == 1) {
+          cursorNibblePos = 0;
+          moved = true;
+        }
+        else if (cursorBytePos > 0) {
+          cursorBytePos--;
+          editingOffset--;
+          cursorNibblePos = 1;
+          editingCol--;
+          if (editingCol < 0) {
+            editingCol = bytesPerLine - 1;
+            editingRow--;
+          }
+          moved = true;
+        }
+      }
+      else if (wParam == VK_DOWN && cursorBytePos + bytesPerLine < totalBytes) {
+        cursorBytePos += bytesPerLine;
         editingOffset += bytesPerLine;
         editingRow++;
         moved = true;
       }
-      else if (wParam == VK_UP && editingOffset >= (size_t)bytesPerLine) {
+      else if (wParam == VK_UP && cursorBytePos >= bytesPerLine) {
+        cursorBytePos -= bytesPerLine;
         editingOffset -= bytesPerLine;
         editingRow--;
+        moved = true;
+      }
+      else if (wParam == VK_HOME) {
+        cursorBytePos = (cursorBytePos / bytesPerLine) * bytesPerLine;
+        editingOffset = cursorBytePos;
+        cursorNibblePos = 0;
+        editingCol = 0;
+        moved = true;
+      }
+      else if (wParam == VK_END) {
+        long long lineStart =
+          (cursorBytePos / bytesPerLine) * bytesPerLine;
+
+        long long lineEnd = std::clamp(
+          lineStart + bytesPerLine - 1,
+          0LL,
+          totalBytes - 1
+        );
+
+        cursorBytePos = lineEnd;
+        editingOffset = lineEnd;
+        cursorNibblePos = 1;
+        editingCol = lineEnd - lineStart;
         moved = true;
       }
 
       if (moved) {
         editBuffer.clear();
+        caretVisible = true;
         InvalidateRect(hWnd, NULL, FALSE);
         return 0;
       }
@@ -606,7 +694,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
       if (scrollRange > 0) {
         int scrollDelta = (int)(deltaY * maxScrollPos / scrollRange);
         scrollPos = dragStartScroll + scrollDelta;
-        scrollPos = std::max(0, std::min(scrollPos, maxScrollPos));
+        scrollPos = std::clamp(scrollPos, 0, maxScrollPos);
 
         RECT rc;
         GetClientRect(hWnd, &rc);
@@ -623,6 +711,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
   case WM_LBUTTONDOWN: {
     int x = GET_X_LPARAM(lParam);
     int y = GET_Y_LPARAM(lParam);
+
     if (menuBar && menuBar->handleMouseDown(x, y)) {
       InvalidateRect(hWnd, NULL, FALSE);
       break;
@@ -631,13 +720,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
     RECT rc;
     GetClientRect(hWnd, &rc);
 
-    int row, col;
-    size_t offset = GetByteOffsetFromClick(x, y, &row, &col, rc.right - rc.left, rc.bottom - rc.top);
+    int row, col, nibblePos = 0;
+    size_t offset = GetByteOffsetFromClick(x, y, &row, &col,
+      rc.right - rc.left,
+      rc.bottom - rc.top,
+      &nibblePos);
+
     if (offset != (size_t)-1) {
+      cursorBytePos = offset;
+      cursorNibblePos = nibblePos;
       editingOffset = offset;
       editingRow = row;
       editingCol = col;
       editBuffer.clear();
+      caretVisible = true;
+
       InvalidateRect(hWnd, NULL, FALSE);
     }
     else {
@@ -646,6 +743,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         editBuffer.clear();
         editingRow = -1;
         editingCol = -1;
+        cursorBytePos = -1;
+        cursorNibblePos = 0;
         InvalidateRect(hWnd, NULL, FALSE);
       }
 
@@ -671,6 +770,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
     HDC hdc = BeginPaint(hWnd, &ps);
 
     if (renderManager && hexData) {
+      RECT rc;
+      GetClientRect(hWnd, &rc);
+
       renderManager->renderHexViewer(
         hexData->getHexLines(),
         hexData->getHeaderLine(),
@@ -683,11 +785,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         darkMode,
         editingRow,
         editingCol,
-        editBuffer);
+        editBuffer,
+        cursorBytePos,          
+        cursorNibblePos,         
+        hexData->getFileSize()); 
 
       if (menuBar) {
-        RECT rc;
-        GetClientRect(hWnd, &rc);
         menuBar->render(renderManager, rc.right - rc.left);
       }
 
@@ -700,7 +803,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
   case WM_MOUSEWHEEL: {
     int delta = GET_WHEEL_DELTA_WPARAM(wParam);
     scrollPos -= (delta > 0 ? 3 : -3);
-    scrollPos = std::max(0, std::min(scrollPos, maxScrollPos));
+    scrollPos = std::clamp(scrollPos, 0, maxScrollPos);
 
     RECT rc;
     GetClientRect(hWnd, &rc);
@@ -709,11 +812,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
     break;
   }
   case WM_DESTROY:
-    SearchDialogs::CleanupDialogs();
-    if (menuBar) {
-      delete menuBar;
-      menuBar = nullptr;
+    if (caretTimerId) {
+      KillTimer(hWnd, caretTimerId);
+      caretTimerId = 0;
     }
+    SearchDialogs::CleanupDialogs();
     if (menuBar) {
       delete menuBar;
       menuBar = nullptr;
@@ -728,7 +831,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
     }
     PostQuitMessage(0);
     break;
-
   default:
     return DefWindowProc(hWnd, message, wParam, lParam);
   }
@@ -970,7 +1072,7 @@ void SaveFileAs() {
 - (void)scrollWheel:(NSEvent*)event {
   CGFloat deltaY = [event deltaY];
   scrollPos -= (int)(deltaY * 3);
-  scrollPos = std::max(0, std::min(scrollPos, maxScrollPos));
+  scrollPos = std::clamp(scrollPos, 0, maxScrollPos);
 
   NSRect bounds = [self bounds];
   UpdateScrollbar(bounds.size.width, bounds.size.height);
@@ -1277,10 +1379,14 @@ int main(int argc, char** argv) {
 
           XWindowAttributes attrs;
           XGetWindowAttributes(g_display, g_window, &attrs);
-          int row, col;
+          int row, col, nibblePos = 0; 
           size_t offset = GetByteOffsetFromClick(event.xbutton.x, event.xbutton.y,
-            &row, &col, attrs.width, attrs.height);
+            &row, &col,
+            attrs.width, attrs.height,
+            &nibblePos); 
           if (offset != (size_t)-1) {
+            cursorBytePos = offset;        
+            cursorNibblePos = nibblePos;    
             editingOffset = offset;
             editingRow = row;
             editingCol = col;
@@ -1289,14 +1395,14 @@ int main(int argc, char** argv) {
           }
         }
         else if (event.xbutton.button == Button4) {
-          scrollPos = std::max(0, scrollPos - 3);
+          scrollPos = std::clamp(scrollPos - 3, 0, INT_MAX);
           XWindowAttributes attrs;
           XGetWindowAttributes(g_display, g_window, &attrs);
           UpdateScrollbar(attrs.width, attrs.height);
           needsRedraw = true;
         }
         else if (event.xbutton.button == Button5) {
-          scrollPos = std::min(maxScrollPos, scrollPos + 3);
+          scrollPos = std::clamp(scrollPos + 3, 0, maxScrollPos);
           XWindowAttributes attrs;
           XGetWindowAttributes(g_display, g_window, &attrs);
           UpdateScrollbar(attrs.width, attrs.height);
@@ -1325,7 +1431,10 @@ int main(int argc, char** argv) {
         darkMode,
         editingRow,
         editingCol,
-        editBuffer);
+        editBuffer,
+        cursorBytePos,     
+        cursorNibblePos,
+        hexData->getFileSize());
 
       if (menuBar) {
         XWindowAttributes attrs;
@@ -1382,7 +1491,7 @@ int CalculateBytesPerLine(int windowWidth) {
   float charWidth = 9.6f;
   int availableChars = (int)(availableWidth / charWidth);
   int bytesPerLine = (availableChars - 30) / 4;
-  bytesPerLine = std::max(8, std::min(16, bytesPerLine));
+  bytesPerLine = std::clamp(bytesPerLine, 8, 16);
   return (bytesPerLine > 12) ? 16 : 8;
 }
 
@@ -1421,7 +1530,7 @@ void UpdateScrollbar(int windowWidth, int windowHeight) {
   if (maxScrollPos > 0 && hexLines.size() > 0) {
     float scrollbarHeight = scrollbarRect.height;
     int thumbHeight = (int)(scrollbarHeight * maxVisibleLines / hexLines.size());
-    thumbHeight = std::max(thumbHeight, 30);
+    thumbHeight = std::clamp(thumbHeight, 30, thumbHeight);
     int thumbTop = scrollbarRect.y + (int)((scrollbarHeight - thumbHeight) * scrollPos / maxScrollPos);
 
     thumbRect = Rect(scrollbarRect.x, thumbTop, scrollbarRect.width, thumbHeight);
@@ -1431,16 +1540,47 @@ void UpdateScrollbar(int windowWidth, int windowHeight) {
   }
 }
 
-size_t GetByteOffsetFromClick(int x, int y, int* outRow, int* outCol, int windowWidth, int windowHeight) {
+size_t GetByteOffsetFromClick(int x, int y, int* outRow, int* outCol, int windowWidth, int windowHeight, int* outNibblePos) {
   LayoutMetrics layout;
+
+#ifdef _WIN32
+  HDC hdc = GetDC(g_hWnd);
+  if (hdc) {
+    HFONT oldFont = (HFONT)SelectObject(hdc, GetStockObject(SYSTEM_FIXED_FONT));
+    SIZE textSize;
+    GetTextExtentPoint32A(hdc, "0", 1, &textSize);
+    layout.charWidth = (float)textSize.cx;
+    layout.lineHeight = (float)textSize.cy;
+    SelectObject(hdc, oldFont);
+    ReleaseDC(g_hWnd, hdc);
+  }
+  else {
+    layout.charWidth = 9.6f;  // Fallback
+    layout.lineHeight = 20.0f;
+  }
+#elif __APPLE__
+  layout.charWidth = 9.6f;
+  layout.lineHeight = 20.0f;
+#else
+  layout.charWidth = 9.6f;
+  layout.lineHeight = 20.0f;
+#endif
 
   int menuBarHeight = menuBar ? menuBar->getHeight() : 0;
 
-  float charWidth = 9.6f;
-  float offsetLabelWidth = 10 * charWidth;
+  float charWidth = layout.charWidth;  // Use measured width
+  float offsetLabelWidth = 10 * charWidth;  // "00000000: " = 10 chars
   float hexStartX = layout.margin + offsetLabelWidth;
 
   float hexStartY = menuBarHeight + layout.margin + layout.headerHeight + 2.0f;
+
+#ifdef _WIN32
+  char debugMsg[256];
+  snprintf(debugMsg, sizeof(debugMsg),
+    "Click at (%d, %d), charWidth=%.1f, hexStartX=%.1f, hexStartY=%.1f\n",
+    x, y, charWidth, hexStartX, hexStartY);
+  OutputDebugStringA(debugMsg);
+#endif
 
   if (y < hexStartY) return (size_t)-1;
 
@@ -1450,13 +1590,32 @@ size_t GetByteOffsetFromClick(int x, int y, int* outRow, int* outCol, int window
   }
 
   int bytesPerLine = hexData->getCurrentBytesPerLine();
-  float hexAreaWidth = bytesPerLine * 3 * charWidth;
+  float hexAreaWidth = bytesPerLine * 3 * charWidth;  // Each byte = "XX " = 3 chars
   float hexEndX = hexStartX + hexAreaWidth;
+
+#ifdef _WIN32
+  snprintf(debugMsg, sizeof(debugMsg),
+    "hexStartX=%.1f, hexEndX=%.1f, x=%d\n",
+    hexStartX, hexEndX, x);
+  OutputDebugStringA(debugMsg);
+#endif
 
   if (x < hexStartX || x > hexEndX) return (size_t)-1;
 
   float relativeX = x - hexStartX;
-  int byteInLine = (int)(relativeX / (charWidth * 3));
+
+  float byteGroupX = relativeX / (charWidth * 3);
+  int byteInLine = (int)byteGroupX;
+
+  float charInByte = (byteGroupX - byteInLine) * 3;  // 0-3 range
+  int nibblePos = (charInByte < 1.0f) ? 0 : 1;
+
+#ifdef _WIN32
+  snprintf(debugMsg, sizeof(debugMsg),
+    "relativeX=%.1f, byteInLine=%d, charInByte=%.2f, nibblePos=%d\n",
+    relativeX, byteInLine, charInByte, nibblePos);
+  OutputDebugStringA(debugMsg);
+#endif
 
   if (byteInLine < 0 || byteInLine >= bytesPerLine) return (size_t)-1;
 
@@ -1465,6 +1624,14 @@ size_t GetByteOffsetFromClick(int x, int y, int* outRow, int* outCol, int window
 
   if (outRow) *outRow = lineIndex - scrollPos;
   if (outCol) *outCol = byteInLine;
+  if (outNibblePos) *outNibblePos = nibblePos;
+
+#ifdef _WIN32
+  snprintf(debugMsg, sizeof(debugMsg),
+    "Final: offset=%zu, row=%d, col=%d, nibble=%d\n",
+    offset, lineIndex - scrollPos, byteInLine, nibblePos);
+  OutputDebugStringA(debugMsg);
+#endif
 
   return offset;
 }

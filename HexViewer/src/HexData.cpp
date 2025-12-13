@@ -1,9 +1,9 @@
-#include "HexData.h"
 #include <fstream>
 #include <sstream>
 #include <iomanip>
 #include <cstdio>
 #include <algorithm>
+#include <HexData.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -250,7 +250,7 @@ void HexData::convertDataToHex(int bytesPerLine) {
     return;
   }
 
-  bytesPerLine = std::max(8, std::min(48, bytesPerLine));
+  bytesPerLine = std::clamp(bytesPerLine, 8, 48);
   currentBytesPerLine = bytesPerLine;
 
   char debugMsg[100];
