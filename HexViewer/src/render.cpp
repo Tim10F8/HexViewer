@@ -7,7 +7,7 @@
 #elif __APPLE__
     #define NATIVE_WINDOW_NULL nullptr
 #else
-    #define NATIVE_WINDOW_NULL 0UL   // X11 Window is unsigned long
+    #define NATIVE_WINDOW_NULL 0UL
 #endif
 
 RenderManager::RenderManager()
@@ -170,7 +170,7 @@ void RenderManager::createFont() {
 #ifdef _WIN32
   font = CreateFontA(
     16,                        // Height
-    0,                         // Width
+    0,                         // Width (0 = default)
     0,                         // Escapement
     0,                         // Orientation
     FW_NORMAL,                 // Weight
@@ -181,12 +181,21 @@ void RenderManager::createFont() {
     OUT_DEFAULT_PRECIS,        // OutPrecision
     CLIP_DEFAULT_PRECIS,       // ClipPrecision
     DEFAULT_QUALITY,           // Quality
-    FIXED_PITCH | FF_MODERN,   // PitchAndFamily
+    FIXED_PITCH | FF_MODERN,   // PitchAndFamily - IMPORTANT: FIXED_PITCH!
     "Consolas"                 // FaceName
   );
 
   if (font && memDC) {
     SelectObject(memDC, font);
+
+    SIZE textSize;
+    GetTextExtentPoint32A(memDC, "0", 1, &textSize);
+
+    char debugMsg[128];
+    snprintf(debugMsg, sizeof(debugMsg),
+      "Font created: charWidth=%d, charHeight=%d\n",
+      textSize.cx, textSize.cy);
+    OutputDebugStringA(debugMsg);
   }
 #endif
 }
@@ -379,8 +388,8 @@ void RenderManager::drawModernButton(const WidgetState& state, const Theme& them
     drawRoundedRect(state.rect, radius, borderColor, false);
   }
 
-  int textWidth = label.length() * 8; // Approximate character width
-  int textHeight = 16; // Approximate font height
+  int textWidth = label.length() * 8; 
+  int textHeight = 16; 
   int textX = state.rect.x + (state.rect.width - textWidth) / 2;
   int textY = state.rect.y + (state.rect.height - textHeight) / 2;
 
@@ -411,14 +420,14 @@ void RenderManager::drawModernCheckbox(const WidgetState& state, const Theme& th
   }
 
   if (checked) {
-    Color checkColor = Color(255, 255, 255); // White checkmark
+    Color checkColor = Color(255, 255, 255);
     int cx = state.rect.x + 4;
     int cy = state.rect.y + 9;
 
     drawLine(cx, cy, cx + 3, cy + 4, checkColor);
-    drawLine(cx + 1, cy, cx + 4, cy + 4, checkColor); // Thicker
+    drawLine(cx + 1, cy, cx + 4, cy + 4, checkColor); 
     drawLine(cx + 3, cy + 4, cx + 10, cy - 4, checkColor);
-    drawLine(cx + 4, cy + 4, cx + 11, cy - 4, checkColor); // Thicker
+    drawLine(cx + 4, cy + 4, cx + 11, cy - 4, checkColor); 
   }
 }
 
@@ -527,7 +536,7 @@ void RenderManager::drawDropdown(
   float radius = 4.0f;
 
   Color bgColor = theme.controlBackground;
-  bgColor.a = 255; // Force fully opaque
+  bgColor.a = 255;
 
   drawRect(state.rect, bgColor, true);
 
@@ -535,9 +544,9 @@ void RenderManager::drawDropdown(
 
   if (state.hovered && !isOpen) {
     borderColor = Color(
-      std::min(255, borderColor.r + 30),
-      std::min(255, borderColor.g + 30),
-      std::min(255, borderColor.b + 30)
+      std::clamp(borderColor.r + 30, 0, 255),
+      std::clamp(borderColor.g + 30, 0, 255),
+      std::clamp(borderColor.b + 30, 0, 255)
     );
   }
 
@@ -566,13 +575,16 @@ void RenderManager::drawDropdown(
   }
 
   if (isOpen && !items.empty()) {
-    int itemHeight = 28; // Slightly taller for better readability
-    int maxVisibleItems = 3; // Show max 3 items, then scroll
+    int itemHeight = 28;
+    int maxVisibleItems = 3;
 
-    int maxScroll = std::max(0, (int)items.size() - maxVisibleItems);
-    scrollOffset = std::max(0, std::min(scrollOffset, maxScroll));
+    int totalItems = (int)items.size();
 
-    int visibleItems = std::min((int)items.size() - scrollOffset, maxVisibleItems);
+    int maxScroll = std::clamp(totalItems - maxVisibleItems, 0, INT_MAX);
+    scrollOffset = std::clamp(scrollOffset, 0, maxScroll);
+    int remaining = totalItems - scrollOffset;
+    int visibleItems = std::clamp(remaining, 0, maxVisibleItems);
+
     int listHeight = itemHeight * visibleItems;
     int listY = state.rect.y + state.rect.height + 2;
 
@@ -588,10 +600,9 @@ void RenderManager::drawDropdown(
     Rect listRect(state.rect.x, listY, state.rect.width, listHeight);
 
     Color listBg = theme.menuBackground;
-    listBg.a = 255; // Make sure it's fully opaque
+    listBg.a = 255;
 
     drawRect(listRect, listBg, true);
-
     drawRoundedRect(listRect, radius, listBg, true);
 
     Color listBorder = theme.menuBorder;
@@ -626,7 +637,7 @@ void RenderManager::drawDropdown(
         itemBg = listBg;
       }
 
-      itemBg.a = 255; // FORCE fully opaque
+      itemBg.a = 255;
 
       drawRect(itemRect, itemBg, true);
 
@@ -636,9 +647,9 @@ void RenderManager::drawDropdown(
       Color textColor = theme.textColor;
       if (isSelected) {
         textColor = Color(
-          std::min(255, textColor.r + 20),
-          std::min(255, textColor.g + 20),
-          std::min(255, textColor.b + 20)
+          std::clamp(textColor.r + 20, 0, 255),
+          std::clamp(textColor.g + 20, 0, 255),
+          std::clamp(textColor.b + 20, 0, 255)
         );
       }
 
@@ -688,6 +699,75 @@ void RenderManager::drawDropdown(
   }
 }
 
+PointF RenderManager::GetBytePointF(long long byteIndex) {
+  Point gp = GetGridBytePoint(byteIndex);
+  return GetBytePointF(gp);
+}
+
+PointF RenderManager::GetBytePointF(Point gp) {
+  float x = (3.0f * _charWidth) * gp.X + _hexAreaX;
+  float y = gp.Y * _charHeight + _hexAreaY;
+  return PointF(x, y);
+}
+
+Point RenderManager::GetGridBytePoint(long long byteIndex) {
+  int row = static_cast<int>(floor(static_cast<double>(byteIndex) /
+    static_cast<double>(_bytesPerLine)));
+  int column = static_cast<int>(byteIndex % _bytesPerLine);
+  return Point(column, row);
+}
+
+BytePositionInfo RenderManager::GetHexBytePositionInfo(Point screenPoint) {
+  int relX = screenPoint.X - _hexAreaX;
+  int relY = screenPoint.Y - _hexAreaY;
+  int charX = relX / _charWidth;
+  int charY = relY / _charHeight;
+  int column = charX / 3;
+  int row = charY;
+
+  long long bytePos = _startByte + (row * _bytesPerLine) + column;
+  int byteCharPos = charX % 3;
+  if (byteCharPos > 1) {
+    byteCharPos = 1;
+  }
+
+  return BytePositionInfo(bytePos, byteCharPos);
+}
+
+void RenderManager::DrawCaret() {
+  if (_bytePos < 0) return;
+  extern bool caretVisible;
+  if (!caretVisible) return;
+
+  long long relativePos = _bytePos - _startByte;
+  if (relativePos < 0 || relativePos >= (_bytesPerLine * _visibleLines)) {
+    return;
+  }
+
+  PointF caretPos = GetBytePointF(relativePos);
+
+  caretPos.X += _byteCharacterPos * _charWidth;
+  int caretWidth = 2;
+  int caretHeight = _charHeight;
+
+  Rect caretRect(
+    static_cast<int>(caretPos.X),
+    static_cast<int>(caretPos.Y),
+    caretWidth,
+    caretHeight
+  );
+
+  Color caretColor = currentTheme.textColor;
+  caretColor.a = 255;
+
+  drawRect(caretRect, caretColor, true);
+}
+
+long long RenderManager::ScreenToByteIndex(int mouseX, int mouseY) {
+  BytePositionInfo info = GetHexBytePositionInfo(Point(mouseX, mouseY));
+  return info.Index;
+}
+
 void RenderManager::renderHexViewer(
   const std::vector<std::string>& hexLines,
   const std::string& headerLine,
@@ -700,10 +780,50 @@ void RenderManager::renderHexViewer(
   bool darkMode,
   int editingRow,
   int editingCol,
-  const std::string& editBuffer)
+  const std::string& editBuffer,
+  long long cursorBytePos,
+  int cursorNibblePos,
+  long long totalBytes)
 {
   currentTheme = darkMode ? Theme::Dark() : Theme::Light();
   LayoutMetrics layout;
+
+#ifdef _WIN32
+  if (memDC) {
+    SIZE textSize;
+    if (GetTextExtentPoint32A(memDC, "0", 1, &textSize)) {
+      layout.charWidth = (float)textSize.cx;
+      layout.lineHeight = (float)textSize.cy;
+    }
+    else {
+      layout.charWidth = 8.0f;
+      layout.lineHeight = 16.0f;
+    }
+  }
+  else {
+    layout.charWidth = 8.0f;
+    layout.lineHeight = 16.0f;
+  }
+#elif __APPLE__
+  layout.charWidth = 9.6f;
+  layout.lineHeight = 20.0f;
+#else
+  if (fontInfo) {
+    layout.charWidth = (float)fontInfo->max_bounds.width;
+    layout.lineHeight = (float)(fontInfo->ascent + fontInfo->descent);
+  }
+  else {
+    layout.charWidth = 9.6f;
+    layout.lineHeight = 20.0f;
+  }
+#endif
+
+  _bytesPerLine = 16;
+  _startByte = scrollPos * _bytesPerLine;
+  _bytePos = cursorBytePos;
+  _byteCharacterPos = cursorNibblePos;
+  _charWidth = (int)layout.charWidth;
+  _charHeight = (int)layout.lineHeight;
 
   beginFrame();
   int menuBarHeight = 24;
@@ -712,34 +832,45 @@ void RenderManager::renderHexViewer(
   drawRect(contentArea, currentTheme.windowBackground, true);
 
   int disasmColumnWidth = 300;
-  int contentWidth = windowWidth - layout.scrollbarWidth - disasmColumnWidth - layout.margin * 2;
+
+  _hexAreaX = (int)(layout.margin + (10 * layout.charWidth));
+  _hexAreaY = menuBarHeight + (int)(layout.margin + layout.headerHeight + 2);
 
   if (!headerLine.empty()) {
-    drawText(headerLine, layout.margin, menuBarHeight + layout.margin, currentTheme.headerColor);
+    drawText(headerLine, (int)layout.margin, menuBarHeight + (int)layout.margin, currentTheme.headerColor);
 
-    int disasmX = windowWidth - layout.scrollbarWidth - disasmColumnWidth + 10;
-    drawText("Disassembly", disasmX, menuBarHeight + layout.margin, currentTheme.disassemblyColor);
+    int disasmX = windowWidth - (int)layout.scrollbarWidth - disasmColumnWidth + 10;
+    drawText("Disassembly", disasmX, menuBarHeight + (int)layout.margin, currentTheme.disassemblyColor);
 
-    drawLine(layout.margin, menuBarHeight + layout.margin + layout.headerHeight,
-      windowWidth - layout.scrollbarWidth, menuBarHeight + layout.margin + layout.headerHeight,
+    drawLine((int)layout.margin,
+      menuBarHeight + (int)(layout.margin + layout.headerHeight),
+      windowWidth - (int)layout.scrollbarWidth,
+      menuBarHeight + (int)(layout.margin + layout.headerHeight),
       currentTheme.separator);
   }
 
-  int separatorX = windowWidth - layout.scrollbarWidth - disasmColumnWidth;
-  drawLine(separatorX, menuBarHeight + layout.margin + layout.headerHeight,
-    separatorX, windowHeight - layout.margin,
+  int separatorX = windowWidth - (int)layout.scrollbarWidth - disasmColumnWidth;
+  drawLine(separatorX,
+    menuBarHeight + (int)(layout.margin + layout.headerHeight),
+    separatorX,
+    windowHeight - (int)layout.margin,
     currentTheme.separator);
 
-  int contentY = menuBarHeight + layout.margin + layout.headerHeight + 2;
-  int contentHeight = windowHeight - contentY - layout.margin;
-  size_t maxVisibleLines = contentHeight / layout.lineHeight;
+  int contentY = _hexAreaY;
+  int contentHeight = windowHeight - contentY - (int)layout.margin;
+  size_t maxVisibleLines = (size_t)(contentHeight / layout.lineHeight);
+  _visibleLines = (int)maxVisibleLines;
+
   size_t startLine = scrollPos;
-  size_t endLine = std::min(startLine + maxVisibleLines, hexLines.size());
+  size_t endLine = std::clamp(
+    startLine + maxVisibleLines,
+    size_t{ 0 },
+    hexLines.size()
+  );
 
   for (size_t i = startLine; i < endLine; i++) {
-    int y = contentY + ((i - startLine) * layout.lineHeight);
+    int y = contentY + (int)((i - startLine) * layout.lineHeight);
     const std::string& line = hexLines[i];
-
     size_t disasmStart = line.rfind("      ");
     std::string hexPart;
     std::string disasmPart;
@@ -752,24 +883,16 @@ void RenderManager::renderHexViewer(
       hexPart = line;
     }
 
-    drawText(hexPart, layout.margin, y, currentTheme.textColor);
-
+    drawText(hexPart, (int)layout.margin, y, currentTheme.textColor);
     if (!disasmPart.empty()) {
       int disasmX = separatorX + 10;
       drawText(disasmPart, disasmX, y, currentTheme.disassemblyColor);
     }
-
-    if (editingRow == (int)(i - startLine) && editingCol >= 0) {
-      int offsetWidth = 10 * layout.charWidth;
-      int byteX = layout.margin + offsetWidth + (editingCol * 3 * layout.charWidth);
-
-      Rect highlight(byteX, y, 2 * layout.charWidth, layout.lineHeight);
-      drawRect(highlight, Color::Blue(), true);
-
-      if (!editBuffer.empty()) {
-        drawText(editBuffer, byteX, y, Color::Yellow());
-      }
-    }
+  }
+  if (_bytePos >= _startByte && _bytePos < _startByte + (_bytesPerLine * _visibleLines)) {
+    DrawCaret();
+  }
+  if (_selectionLength > 0) {
   }
 
   if (maxScrollPos > 0) {

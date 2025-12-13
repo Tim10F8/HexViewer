@@ -186,7 +186,7 @@ bool UpdateDialog::Show(NativeWindow parent, const UpdateInfo& info) {
             case NSEventTypeScrollWheel: {
               CGFloat deltaY = [event scrollingDeltaY];
               scrollOffset -= (int)(deltaY * 2);
-              scrollOffset = std::max(0, scrollOffset);
+              scrollOffset = std::clamp(scrollOffset, 0, INT_MAX);
               OnPaint();
               break;
             }
@@ -299,7 +299,7 @@ bool UpdateDialog::Show(NativeWindow parent, const UpdateInfo& info) {
         }
         else if (event.xbutton.button == Button4) { // Scroll up
           scrollOffset -= 20;
-          scrollOffset = std::max(0, scrollOffset);
+          scrollOffset = std::clamp(scrollOffset, 0, INT_MAX);
           OnPaint();
         }
         else if (event.xbutton.button == Button5) { // Scroll down
@@ -368,7 +368,7 @@ LRESULT CALLBACK UpdateDialog::DialogProc(HWND hWnd, UINT message, WPARAM wParam
   case WM_MOUSEWHEEL: {
     int delta = GET_WHEEL_DELTA_WPARAM(wParam);
     scrollOffset -= (delta > 0 ? 20 : -20);
-    scrollOffset = std::max(0, scrollOffset);
+    scrollOffset = std::clamp(scrollOffset, 0, scrollOffset);
     InvalidateRect(hWnd, nullptr, FALSE);
     break;
   }
@@ -673,11 +673,26 @@ void UpdateDialog::RenderContent(int width, int height) {
       scrollbarRect = Rect(width - 15, 100, 10, maxY - 100);
       renderer->drawRect(scrollbarRect, theme.scrollbarBg, true);
 
-      float visibleRatio = (float)(maxY - 130) / contentHeight;
-      int thumbHeight = std::max(30, (int)(scrollbarRect.height * visibleRatio));
-      int maxScroll = contentHeight - (maxY - 130);
-      int thumbY = scrollbarRect.y + (int)((scrollbarRect.height - thumbHeight) *
-        (scrollOffset / (float)maxScroll));
+      int viewHeight = maxY - 130;
+      float visibleRatio = 0.0f;
+      if (contentHeight > 0) {
+        visibleRatio = (float)viewHeight / (float)contentHeight;
+      }
+
+      visibleRatio = std::clamp(visibleRatio, 0.0f, 1.0f);
+      int thumbHeight = (int)(scrollbarRect.height * visibleRatio);
+      thumbHeight = std::clamp(thumbHeight, 30, scrollbarRect.height);
+
+      int maxScroll = contentHeight - viewHeight;
+      maxScroll = std::clamp(maxScroll, 0, INT_MAX);
+      float scrollNorm = 0.0f;
+      if (maxScroll > 0) {
+        scrollNorm = (float)scrollOffset / (float)maxScroll;
+      }
+      scrollNorm = std::clamp(scrollNorm, 0.0f, 1.0f);
+      int thumbY =
+        scrollbarRect.y +
+        (int)((scrollbarRect.height - thumbHeight) * scrollNorm);
 
       scrollThumbRect = Rect(scrollbarRect.x, thumbY, scrollbarRect.width, thumbHeight);
     }

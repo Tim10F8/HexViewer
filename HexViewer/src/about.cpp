@@ -1,4 +1,3 @@
-#include "about.h"
 #ifdef _WIN32
 #elif __APPLE__
 #import <Cocoa/Cocoa.h>
@@ -10,6 +9,7 @@
 #include <unistd.h>
 #endif
 #include <language.h>
+#include <about.h>
 
 RenderManager* AboutDialog::renderer = nullptr;
 bool AboutDialog::darkMode = true;

@@ -1,8 +1,9 @@
-#define NOMINMAX
 #pragma once
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <climits>
+#include <cmath>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -124,16 +125,42 @@ struct Theme {
   }
 };
 
+struct Point {
+  int X;
+  int Y;
+  Point(int x = 0, int y = 0) : X(x), Y(y) {}
+};
 
+struct PointF {
+  float X;
+  float Y;
+  PointF(float x = 0.0f, float y = 0.0f) : X(x), Y(y) {}
+};
+
+struct BytePositionInfo {
+  long long Index;
+  int CharacterPosition;
+  BytePositionInfo(long long idx = 0, int charPos = 0)
+    : Index(idx), CharacterPosition(charPos) {
+  }
+};
 
 struct LayoutMetrics {
-  int margin = 10;
-  int headerHeight = 25;
-  int lineHeight = 20;
-  int scrollbarWidth = 16;
-  int charWidth = 9;
-  int charHeight = 16;
+  float margin = 20.0f;       
+  float headerHeight = 20.0f;
+  float lineHeight = 20.0f;
+  float charWidth = 9.6f;     
+  float scrollbarWidth = 20.0f;
+
+  LayoutMetrics()
+    : margin(20.0f),
+    headerHeight(20.0f),
+    lineHeight(20.0f),
+    charWidth(9.6f),
+    scrollbarWidth(20.0f) {
+  }
 };
+
 
 struct WidgetState {
   Rect rect;
@@ -148,7 +175,7 @@ struct WidgetState {
 #ifdef _WIN32
 typedef HWND NativeWindow;
 #elif __APPLE__
-typedef void* NativeWindow;  // NSWindow*
+typedef void* NativeWindow;  
 #else
 typedef Window NativeWindow;
 #endif
@@ -175,6 +202,13 @@ public:
   void drawModernButton(const WidgetState& state, const Theme& theme, const std::string& label);
   void drawModernCheckbox(const WidgetState& state, const Theme& theme, bool checked);
   void drawModernRadioButton(const WidgetState& state, const Theme& theme, bool selected);
+  Point GetGridBytePoint(long long byteIndex);
+  PointF GetBytePointF(long long byteIndex);
+  PointF GetBytePointF(Point gridPoint);
+  BytePositionInfo GetHexBytePositionInfo(Point screenPoint);
+  void UpdateCaret();
+  void DrawCaret();
+  long long ScreenToByteIndex(int mouseX, int mouseY);
 
   void drawDropdown(
     const WidgetState& state,
@@ -196,10 +230,13 @@ public:
     const Rect& scrollbarRect,
     const Rect& thumbRect,
     bool darkMode,
-    int editingRow = -1,
-    int editingCol = -1,
-    const std::string& editBuffer = ""
-  );
+    int editingRow,
+    int editingCol,
+    const std::string& editBuffer,
+    long long cursorBytePos,       
+    int cursorNibblePos,          
+    long long totalBytes);          
+
 
   Theme getCurrentTheme() const { return currentTheme; }
 
@@ -211,7 +248,17 @@ private:
   int windowWidth;
   int windowHeight;
   Theme currentTheme;
+  long long _bytePos;         
+  int _byteCharacterPos;       
+  long long _startByte;        
+  long long _selectionLength;  
+  int _bytesPerLine;           
+  int _visibleLines;           
 
+  int _hexAreaX;              
+  int _hexAreaY;             
+  int _charWidth;             
+  int _charHeight;
 #ifdef _WIN32
   HDC hdc;
   HDC memDC;
