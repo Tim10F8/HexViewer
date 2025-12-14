@@ -13,7 +13,6 @@
 #include <fstream>
 #include <language.h>
 #include <about.h>
-#include <resource.h>
 #include <imageloader.h>
 
 RenderManager* AboutDialog::renderer = nullptr;
