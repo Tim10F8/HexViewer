@@ -27,14 +27,14 @@ jobs:
           chmod a+x build_linux.sh
           ./build_linux.sh
 
-      - name: Upload Linux Release
+      - name: Upload Release as Download
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         with:
           tag_name: Beta
           draft: false
           prerelease: true
           files: |
-            /home/runner/work/XHexViewer/XHexViewer/XHexViewer/build/bin/XHexViewer
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            /github/home/HexViewer/build/bin/HexViewer
