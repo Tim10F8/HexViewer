@@ -85,7 +85,7 @@ set(HEADERS
     HexViewer/include/about.h
     HexViewer/include/contextmenu.h
     HexViewer/include/imageloader.h
-    HexViewer/include/resource.h
+    HexViewer/include/Resource.h
 )
 
 if(WIN32)
