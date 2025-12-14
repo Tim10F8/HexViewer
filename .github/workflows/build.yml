@@ -26,6 +26,9 @@ jobs:
         run: |
           chmod a+x build_linux.sh
           ./build_linux.sh
+          pwd
+          ls
+          echo "I am here!"
 
       - name: Upload Release as Download
         if: github.event_name != 'pull_request'
