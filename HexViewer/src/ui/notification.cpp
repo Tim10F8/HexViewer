@@ -86,29 +86,18 @@ void AppNotification::Show(const std::string& title,
 
 #ifdef _WIN32
 
-void WriteDebugLog(const std::string& message) {
-  std::ofstream logFile("notification_debug.log", std::ios::app);
-  if (logFile.is_open()) {
-    logFile << message << std::endl;
-    logFile.close();
-  }
-}
-
 bool AppNotification::EnsureShortcutExists(const std::wstring& appId) {
   if (m_shortcutCreated) {
-    WriteDebugLog("Shortcut already created");
     return true;
   }
 
   wchar_t exePath[MAX_PATH];
   if (GetModuleFileNameW(NULL, exePath, MAX_PATH) == 0) {
-    WriteDebugLog("Failed to get exe path");
     return false;
   }
 
   wchar_t startMenuPath[MAX_PATH];
   if (FAILED(SHGetFolderPathW(NULL, CSIDL_PROGRAMS, NULL, 0, startMenuPath))) {
-    WriteDebugLog("Failed to get start menu path");
     return false;
   }
 
@@ -117,11 +106,8 @@ bool AppNotification::EnsureShortcutExists(const std::wstring& appId) {
   DWORD attribs = GetFileAttributesW(shortcutPath.c_str());
   if (attribs != INVALID_FILE_ATTRIBUTES) {
     m_shortcutCreated = true;
-    WriteDebugLog("Shortcut already exists at: " + std::string(shortcutPath.begin(), shortcutPath.end()));
     return true;
   }
-
-  WriteDebugLog("Creating shortcut at: " + std::string(shortcutPath.begin(), shortcutPath.end()));
 
   IShellLinkW* pShellLink = NULL;
   HRESULT hr = CoCreateInstance(CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER,
@@ -144,10 +130,8 @@ bool AppNotification::EnsureShortcutExists(const std::wstring& appId) {
       hr = pPropertyStore->SetValue(PKEY_AppUserModel_ID, pv);
       if (SUCCEEDED(hr)) {
         hr = pPropertyStore->Commit();
-        WriteDebugLog("Set AppUserModelID successfully");
       }
       else {
-        WriteDebugLog("Failed to set AppUserModelID");
       }
       pPropertyStore->Release();
     }
@@ -159,17 +143,14 @@ bool AppNotification::EnsureShortcutExists(const std::wstring& appId) {
       hr = pPersistFile->Save(shortcutPath.c_str(), TRUE);
       if (SUCCEEDED(hr)) {
         m_shortcutCreated = true;
-        WriteDebugLog("Shortcut created successfully");
       }
       else {
-        WriteDebugLog("Failed to save shortcut, HRESULT: " + std::to_string(hr));
       }
       pPersistFile->Release();
     }
     pShellLink->Release();
   }
   else {
-    WriteDebugLog("Failed to create IShellLink, HRESULT: " + std::to_string(hr));
   }
 
   return m_shortcutCreated;
@@ -178,7 +159,6 @@ bool AppNotification::EnsureShortcutExists(const std::wstring& appId) {
 void AppNotification::ShowWindowsFallback(const std::string& title,
   const std::string& message,
   NotificationIcon icon) {
-  WriteDebugLog("FALLBACK: " + title + " - " + message);
 
   std::string iconStr = "INFO";
   switch (icon) {
@@ -187,7 +167,6 @@ void AppNotification::ShowWindowsFallback(const std::string& title,
   default: iconStr = "INFO"; break;
   }
 
-  OutputDebugStringA(("[" + iconStr + "] " + title + ": " + message + "\n").c_str());
 }
 
 void AppNotification::ShowWindows(const std::string& title,
@@ -196,13 +175,7 @@ void AppNotification::ShowWindows(const std::string& title,
   NotificationIcon icon,
   int timeoutMs) {
 
-  WriteDebugLog("=== ShowWindows called ===");
-  WriteDebugLog("Title: " + title);
-  WriteDebugLog("Message: " + message);
-  WriteDebugLog("AppId: " + appId);
-
   if (!m_initialized) {
-    WriteDebugLog("ERROR: WinRT not initialized");
     ShowWindowsFallback(title, message, icon);
     return;
   }
@@ -212,7 +185,6 @@ void AppNotification::ShowWindows(const std::string& title,
   std::wstring wAppId(appId.begin(), appId.end());
 
   if (!EnsureShortcutExists(wAppId)) {
-    WriteDebugLog("WARNING: Could not ensure shortcut exists, trying anyway...");
   }
 
   HRESULT hr = S_OK;
@@ -222,20 +194,16 @@ void AppNotification::ShowWindows(const std::string& title,
     HStringReference(RuntimeClass_Windows_UI_Notifications_ToastNotificationManager).Get(),
     &toastStatics);
   if (FAILED(hr)) {
-    WriteDebugLog("ERROR: Failed to get ToastNotificationManagerStatics, HRESULT: " + std::to_string(hr));
     ShowWindowsFallback(title, message, icon);
     return;
   }
-  WriteDebugLog("Got ToastNotificationManagerStatics");
 
   ComPtr<IXmlDocument> toastXml;
   hr = toastStatics->GetTemplateContent(ToastTemplateType_ToastText02, &toastXml);
   if (FAILED(hr)) {
-    WriteDebugLog("ERROR: Failed to get template, HRESULT: " + std::to_string(hr));
     ShowWindowsFallback(title, message, icon);
     return;
   }
-  WriteDebugLog("Got template XML");
 
   ComPtr<IXmlNodeList> textNodes;
   toastXml->GetElementsByTagName(HStringReference(L"text").Get(), &textNodes);
@@ -253,7 +221,6 @@ void AppNotification::ShowWindows(const std::string& title,
         titleText.As(&titleTextNode);
         ComPtr<IXmlNode> appendedChild;
         titleNode->AppendChild(titleTextNode.Get(), &appendedChild);
-        WriteDebugLog("Set title text");
       }
     }
 
@@ -269,7 +236,6 @@ void AppNotification::ShowWindows(const std::string& title,
         messageText.As(&messageTextNode);
         ComPtr<IXmlNode> appendedChild;
         messageNode->AppendChild(messageTextNode.Get(), &appendedChild);
-        WriteDebugLog("Set message text");
       }
     }
   }
@@ -279,40 +245,31 @@ void AppNotification::ShowWindows(const std::string& title,
     HStringReference(RuntimeClass_Windows_UI_Notifications_ToastNotification).Get(),
     &toastFactory);
   if (FAILED(hr)) {
-    WriteDebugLog("ERROR: Failed to get ToastNotificationFactory, HRESULT: " + std::to_string(hr));
     ShowWindowsFallback(title, message, icon);
     return;
   }
-  WriteDebugLog("Got ToastNotificationFactory");
 
   ComPtr<IToastNotification> toast;
   hr = toastFactory->CreateToastNotification(toastXml.Get(), &toast);
   if (FAILED(hr)) {
-    WriteDebugLog("ERROR: Failed to create toast notification, HRESULT: " + std::to_string(hr));
     ShowWindowsFallback(title, message, icon);
     return;
   }
-  WriteDebugLog("Created toast notification");
 
   ComPtr<IToastNotifier> notifier;
   hr = toastStatics->CreateToastNotifierWithId(
     HStringReference(wAppId.c_str()).Get(),
     &notifier);
   if (FAILED(hr)) {
-    WriteDebugLog("ERROR: Failed to create notifier, HRESULT: " + std::to_string(hr));
     ShowWindowsFallback(title, message, icon);
     return;
   }
-  WriteDebugLog("Created notifier");
 
   hr = notifier->Show(toast.Get());
   if (FAILED(hr)) {
-    WriteDebugLog("ERROR: Failed to show toast, HRESULT: " + std::to_string(hr));
     ShowWindowsFallback(title, message, icon);
     return;
   }
-
-  WriteDebugLog("SUCCESS: Toast notification shown!");
 }
 
 std::wstring AppNotification::EscapeXml(const std::wstring& str) {
