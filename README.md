@@ -1,2 +1,0 @@
-# HexViewer
-Hex Viewer
