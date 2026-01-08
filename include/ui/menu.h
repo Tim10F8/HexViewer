@@ -102,4 +102,3 @@ namespace MenuHelper {
     Menu createHelpMenu(MenuCallback onAbout, MenuCallback onDocumentation);
     Menu createToolsMenu(MenuCallback onOptions, MenuCallback onPlugins);
 }
-
