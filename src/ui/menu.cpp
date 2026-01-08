@@ -29,16 +29,16 @@ MenuItem::MenuItem(const char *lbl, MenuItemType t)
 MenuItem::~MenuItem()
 {
   if (label)
-    MemFree(label, StrLen(label) + 1);
+    memFree(label, StrLen(label) + 1);
   if (shortcut)
-    MemFree(shortcut, StrLen(shortcut) + 1);
+    memFree(shortcut, StrLen(shortcut) + 1);
   if (submenu)
   {
     for (int i = 0; i < submenuCount; i++)
     {
       submenu[i].~MenuItem();
     }
-    MemFree(submenu, submenuCount * sizeof(MenuItem));
+    memFree(submenu, submenuCount * sizeof(MenuItem));
   }
 }
 
@@ -133,14 +133,14 @@ Menu::Menu()
 Menu::~Menu()
 {
   if (title)
-    MemFree(title, StrLen(title) + 1);
+    memFree(title, StrLen(title) + 1);
   if (items)
   {
     for (int i = 0; i < itemCount; i++)
     {
       items[i].~MenuItem();
     }
-    MemFree(items, itemCapacity * sizeof(MenuItem));
+    memFree(items, itemCapacity * sizeof(MenuItem));
   }
 }
 
@@ -306,7 +306,7 @@ MenuBar::~MenuBar()
     {
       menus[i].~Menu();
     }
-    MemFree(menus, menuCapacity * sizeof(Menu));
+    memFree(menus, menuCapacity * sizeof(Menu));
   }
 }
 
