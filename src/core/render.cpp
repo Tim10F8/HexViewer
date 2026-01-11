@@ -1,7 +1,7 @@
 #include "render.h"
 #include "panelcontent.h"
 #include "hexdata.h"
-#include "platfrom_die.h"
+#include "platform_die.h"
 
 char buf[256];
 char g_DIEExecutablePath[260];
