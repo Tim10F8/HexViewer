@@ -7,26 +7,29 @@
 #ifdef _WIN32
 #include <windows.h>
 
-enum class UserRole {
+enum class UserRole
+{
   CurrentUser,
   AllUsers
 };
 
-class ContextMenuRegistry {
+class ContextMenuRegistry
+{
 public:
-  static bool Register(const wchar_t* exePath, UserRole role = UserRole::CurrentUser);
+  static bool Register(const wchar_t *exePath, UserRole role = UserRole::CurrentUser);
   static bool Unregister(UserRole role = UserRole::CurrentUser);
   static bool IsRegistered(UserRole role = UserRole::CurrentUser);
 
 private:
   static HKEY GetRootKey(UserRole role);
-  static wchar_t* GetRegistryPath(UserRole role);
-  static bool SetRegistryValue(HKEY hKey, const wchar_t* valueName, const wchar_t* data);
-  static bool DeleteRegistryKey(HKEY hRootKey, const wchar_t* subKey);
+  static wchar_t *GetRegistryPath(UserRole role);
+  static bool SetRegistryValue(HKEY hKey, const wchar_t *valueName, const wchar_t *data);
+  static bool DeleteRegistryKey(HKEY hRootKey, const wchar_t *subKey);
 };
 #endif
 
-enum ContextMenuAction {
+enum ContextMenuAction
+{
   ID_COPY = 100,
   ID_COPY_AS = 104,
   ID_COPY_HEX = 101,
@@ -42,22 +45,23 @@ enum ContextMenuAction {
   ID_ADD_BOOKMARK = 114
 };
 
-class AppContextMenu {
+class AppContextMenu
+{
 public:
   AppContextMenu();
-  
+
   void show(int x, int y);
-  
+
   void hide();
-  
+
   bool isVisible() const;
-  
-  const ContextMenuState& getState() const;
-  
-  void handleMouseMove(int x, int y, RenderManager* renderer);
-  
-  int handleClick(int x, int y, RenderManager* renderer);
-  
+
+  const ContextMenuState &getState() const;
+
+  void handleMouseMove(int x, int y, RenderManager *renderer);
+
+  int handleClick(int x, int y, RenderManager *renderer);
+
   void executeAction(int actionId);
 
 private:

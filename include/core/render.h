@@ -338,8 +338,8 @@ PanelDockPosition GetDockPositionFromMouse(int mouseX, int mouseY, int windowWid
 
 struct ContextMenuItem
 {
-  char *text;
-  char *shortcut;
+  char* text;
+  char* shortcut;
   bool enabled;
   bool checked;
   bool separator;
@@ -347,17 +347,63 @@ struct ContextMenuItem
   Vector<ContextMenuItem> submenu;
 
   ContextMenuItem()
-      : text(nullptr), shortcut(nullptr),
-        enabled(true), checked(false), separator(false), id(0)
+    : text(nullptr), shortcut(nullptr),
+    enabled(true), checked(false), separator(false), id(0)
   {
+  }
+
+  ContextMenuItem(const ContextMenuItem& other)
+    : text(nullptr), shortcut(nullptr),
+    enabled(other.enabled), checked(other.checked),
+    separator(other.separator), id(other.id),
+    submenu(other.submenu)
+  {
+    if (other.text) {
+      text = AllocString(other.text);
+    }
+    if (other.shortcut) {
+      shortcut = AllocString(other.shortcut);
+    }
+  }
+
+  ContextMenuItem& operator=(const ContextMenuItem& other)
+  {
+    if (this != &other) {
+      if (text) {
+        PlatformFree(text, StrLen(text) + 1);
+        text = nullptr;
+      }
+      if (shortcut) {
+        PlatformFree(shortcut, StrLen(shortcut) + 1);
+        shortcut = nullptr;
+      }
+
+      if (other.text) {
+        text = AllocString(other.text);
+      }
+      if (other.shortcut) {
+        shortcut = AllocString(other.shortcut);
+      }
+
+      enabled = other.enabled;
+      checked = other.checked;
+      separator = other.separator;
+      id = other.id;
+      submenu = other.submenu;
+    }
+    return *this;
   }
 
   ~ContextMenuItem()
   {
-    if (text)
+    if (text) {
       PlatformFree(text, StrLen(text) + 1);
-    if (shortcut)
+      text = nullptr;
+    }
+    if (shortcut) {
       PlatformFree(shortcut, StrLen(shortcut) + 1);
+      shortcut = nullptr;
+    }
   }
 };
 

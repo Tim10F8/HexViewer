@@ -1948,7 +1948,6 @@ void RenderManager::drawContextMenu(
   }
 
   int menuWidth = state.width > 0 ? state.width : 200;
-
   Rect menuRect(state.x, state.y, menuWidth, totalHeight);
 
   Rect shadowRect(state.x + 4, state.y + 4, menuWidth, totalHeight);
@@ -1959,10 +1958,8 @@ void RenderManager::drawContextMenu(
   menuBg.a = 255;
   drawRoundedRect(menuRect, 4.0f, menuBg, true);
 
-  Color menuBorder = theme.menuBorder;
-  drawRoundedRect(menuRect, 4.0f, menuBorder, false);
-
   int currentY = state.y + padding;
+
   for (size_t i = 0; i < state.items.size(); i++)
   {
     const ContextMenuItem &item = state.items[i];
@@ -1987,10 +1984,18 @@ void RenderManager::drawContextMenu(
         menuWidth - 2,
         itemHeight);
 
-    if ((int)i == state.hoveredIndex && item.enabled)
+    if ((int)i == state.hoveredIndex)
     {
       Color hoverBg = theme.menuHover;
       hoverBg.a = 255;
+
+      if (!item.enabled)
+      {
+        hoverBg.r = (hoverBg.r + menuBg.r) / 2;
+        hoverBg.g = (hoverBg.g + menuBg.g) / 2;
+        hoverBg.b = (hoverBg.b + menuBg.b) / 2;
+      }
+
       drawRect(itemRect, hoverBg, true);
     }
 
@@ -2008,9 +2013,7 @@ void RenderManager::drawContextMenu(
 
     int textX = state.x + padding + (item.checked ? 20 : 10);
     int textY = currentY + (itemHeight / 2) - 6;
-
     Color textColor = item.enabled ? theme.textColor : Color(theme.textColor.r / 2, theme.textColor.g / 2, theme.textColor.b / 2);
-
     drawText(item.text, textX, textY, textColor);
 
     if (item.shortcut && item.shortcut[0])
@@ -2033,11 +2036,13 @@ void RenderManager::drawContextMenu(
     currentY += itemHeight;
   }
 
+  Color menuBorder = theme.menuBorder;
+  drawRoundedRect(menuRect, 4.0f, menuBorder, false);
+
   if (state.openSubmenuIndex >= 0 &&
       state.openSubmenuIndex < (int)state.items.size() &&
       !state.items[state.openSubmenuIndex].submenu.empty())
   {
-
     int submenuY = state.y + padding;
     for (int i = 0; i < state.openSubmenuIndex; i++)
     {
