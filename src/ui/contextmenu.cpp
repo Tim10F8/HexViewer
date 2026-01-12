@@ -200,7 +200,6 @@ bool ContextMenuRegistry::IsRegistered(UserRole role)
 }
 #endif
 
-
 bool SetClipboardText(const char *text)
 {
   if (!text)
@@ -358,7 +357,6 @@ void AppendCharToBuffer(char *&buffer, size_t &capacity, size_t &length, char c)
   buffer[length] = '\0';
 }
 
-
 AppContextMenu::AppContextMenu()
 {
   state.visible = false;
@@ -367,7 +365,8 @@ AppContextMenu::AppContextMenu()
   state.openSubmenuIndex = -1;
 }
 
-/*void AppContextMenu::show(int x, int y)
+
+void AppContextMenu::show(int x, int y)
 {
   state.visible = true;
   state.x = x;
@@ -380,203 +379,179 @@ AppContextMenu::AppContextMenu()
   bool hasData = !g_HexData.isEmpty();
   bool hasCursor = (cursorBytePos != -1);
 
-  ContextMenuItem copyItem;
-  copyItem.text = (char *)"Copy";
-  copyItem.shortcut = (char *)"Ctrl+C";
-  copyItem.enabled = hasSelection;
-  copyItem.checked = false;
-  copyItem.separator = false;
-  copyItem.id = ID_COPY;
-  state.items.push_back(copyItem);
+  {
+    ContextMenuItem item;
+    item.text = AllocString("Copy");
+    item.shortcut = AllocString("Ctrl+C");
+    item.enabled = hasSelection;
+    item.checked = false;
+    item.separator = false;
+    item.id = ID_COPY;
+    state.items.push_back(item);
+  }
 
-  Vector<ContextMenuItem> copySubmenu;
+  {
+    ContextMenuItem copyAsItem;
+    copyAsItem.text = AllocString("Copy As");
+    copyAsItem.shortcut = nullptr;
+    copyAsItem.enabled = hasSelection;
+    copyAsItem.checked = false;
+    copyAsItem.separator = false;
+    copyAsItem.id = ID_COPY_AS;
 
-  ContextMenuItem copyHexItem;
-  copyHexItem.text = (char *)"Copy as Hex";
-  copyHexItem.shortcut = (char *)"";
-  copyHexItem.enabled = hasSelection;
-  copyHexItem.checked = false;
-  copyHexItem.separator = false;
-  copyHexItem.id = ID_COPY_HEX;
-  copySubmenu.push_back(copyHexItem);
+    {
+      ContextMenuItem sub;
+      sub.text = AllocString("Copy as Hex");
+      sub.shortcut = nullptr;
+      sub.enabled = hasSelection;
+      sub.checked = false;
+      sub.separator = false;
+      sub.id = ID_COPY_HEX;
+      copyAsItem.submenu.push_back(sub);
+    }
+    {
+      ContextMenuItem sub;
+      sub.text = AllocString("Copy as Text");
+      sub.shortcut = nullptr;
+      sub.enabled = hasSelection;
+      sub.checked = false;
+      sub.separator = false;
+      sub.id = ID_COPY_TEXT;
+      copyAsItem.submenu.push_back(sub);
+    }
+    {
+      ContextMenuItem sub;
+      sub.text = AllocString("Copy as C Array");
+      sub.shortcut = nullptr;
+      sub.enabled = hasSelection;
+      sub.checked = false;
+      sub.separator = false;
+      sub.id = ID_COPY_CARRAY;
+      copyAsItem.submenu.push_back(sub);
+    }
 
-  ContextMenuItem copyTextItem;
-  copyTextItem.text = (char *)"Copy as Text";
-  copyTextItem.shortcut = (char *)"";
-  copyTextItem.enabled = hasSelection;
-  copyTextItem.checked = false;
-  copyTextItem.separator = false;
-  copyTextItem.id = ID_COPY_TEXT;
-  copySubmenu.push_back(copyTextItem);
+    state.items.push_back(copyAsItem);
+  }
 
-  ContextMenuItem copyCArrayItem;
-  copyCArrayItem.text = (char *)"Copy as C Array";
-  copyCArrayItem.shortcut = (char *)"";
-  copyCArrayItem.enabled = hasSelection;
-  copyCArrayItem.checked = false;
-  copyCArrayItem.separator = false;
-  copyCArrayItem.id = ID_COPY_CARRAY;
-  copySubmenu.push_back(copyCArrayItem);
+  {
+    ContextMenuItem item;
+    item.text = AllocString("Paste");
+    item.shortcut = AllocString("Ctrl+V");
+    item.enabled = hasData && hasCursor;
+    item.checked = false;
+    item.separator = false;
+    item.id = ID_PASTE;
+    state.items.push_back(item);
+  }
 
-  ContextMenuItem copyAsItem;
-  copyAsItem.text = (char *)"Copy As";
-  copyAsItem.shortcut = (char *)"";
-  copyAsItem.enabled = hasSelection;
-  copyAsItem.checked = false;
-  copyAsItem.separator = false;
-  copyAsItem.id = ID_COPY_AS;
-  copyAsItem.submenu = copySubmenu;
-  state.items.push_back(copyAsItem);
+  {
+    ContextMenuItem item;
+    item.text = nullptr;
+    item.shortcut = nullptr;
+    item.enabled = true;
+    item.checked = false;
+    item.separator = true;
+    item.id = 0;
+    state.items.push_back(item);
+  }
 
-  ContextMenuItem pasteItem;
-  pasteItem.text = (char *)"Paste";
-  pasteItem.shortcut = (char *)"Ctrl+V";
-  pasteItem.enabled = hasData && hasCursor;
-  pasteItem.checked = false;
-  pasteItem.separator = false;
-  pasteItem.id = ID_PASTE;
-  state.items.push_back(pasteItem);
+  {
+    ContextMenuItem item;
+    item.text = AllocString("Select All");
+    item.shortcut = AllocString("Ctrl+A");
+    item.enabled = hasData;
+    item.checked = false;
+    item.separator = false;
+    item.id = ID_SELECT_ALL;
+    state.items.push_back(item);
+  }
 
-  ContextMenuItem sep1;
-  sep1.text = (char *)"";
-  sep1.shortcut = (char *)"";
-  sep1.enabled = true;
-  sep1.checked = false;
-  sep1.separator = true;
-  sep1.id = 0;
-  state.items.push_back(sep1);
+  {
+    ContextMenuItem item;
+    item.text = nullptr;
+    item.shortcut = nullptr;
+    item.enabled = true;
+    item.checked = false;
+    item.separator = true;
+    item.id = 0;
+    state.items.push_back(item);
+  }
 
-  ContextMenuItem selectAllItem;
-  selectAllItem.text = (char *)"Select All";
-  selectAllItem.shortcut = (char *)"Ctrl+A";
-  selectAllItem.enabled = hasData;
-  selectAllItem.checked = false;
-  selectAllItem.separator = false;
-  selectAllItem.id = ID_SELECT_ALL;
-  state.items.push_back(selectAllItem);
+  {
+    ContextMenuItem item;
+    item.text = AllocString("Go to...");
+    item.shortcut = AllocString("Ctrl+G");
+    item.enabled = hasData;
+    item.checked = false;
+    item.separator = false;
+    item.id = ID_GOTO_OFFSET;
+    state.items.push_back(item);
+  }
 
-  ContextMenuItem sep2;
-  sep2.text = (char *)"";
-  sep2.shortcut = (char *)"";
-  sep2.enabled = true;
-  sep2.checked = false;
-  sep2.separator = true;
-  sep2.id = 0;
-  state.items.push_back(sep2);
+  {
+    ContextMenuItem item;
+    item.text = nullptr;
+    item.shortcut = nullptr;
+    item.enabled = true;
+    item.checked = false;
+    item.separator = true;
+    item.id = 0;
+    state.items.push_back(item);
+  }
 
-  ContextMenuItem gotoItem;
-  gotoItem.text = (char *)"Go to Offset...";
-  gotoItem.shortcut = (char *)"Ctrl+G";
-  gotoItem.enabled = hasData;
-  gotoItem.checked = false;
-  gotoItem.separator = false;
-  gotoItem.id = ID_GOTO_OFFSET;
-  state.items.push_back(gotoItem);
+  {
+    ContextMenuItem fillItem;
+    fillItem.text = AllocString("Fill Selection");
+    fillItem.shortcut = nullptr;
+    fillItem.enabled = hasSelection;
+    fillItem.checked = false;
+    fillItem.separator = false;
+    fillItem.id = ID_FILL;
 
-  ContextMenuItem sep3;
-  sep3.text = (char *)"";
-  sep3.shortcut = (char *)"";
-  sep3.enabled = true;
-  sep3.checked = false;
-  sep3.separator = true;
-  sep3.id = 0;
-  state.items.push_back(sep3);
+    {
+      ContextMenuItem sub;
+      sub.text = AllocString("Fill with Zeros");
+      sub.shortcut = nullptr;
+      sub.enabled = hasSelection;
+      sub.checked = false;
+      sub.separator = false;
+      sub.id = ID_FILL_ZEROS;
+      fillItem.submenu.push_back(sub);
+    }
+    {
+      ContextMenuItem sub;
+      sub.text = AllocString("Fill with 0xFF");
+      sub.shortcut = nullptr;
+      sub.enabled = hasSelection;
+      sub.checked = false;
+      sub.separator = false;
+      sub.id = ID_FILL_FF;
+      fillItem.submenu.push_back(sub);
+    }
+    {
+      ContextMenuItem sub;
+      sub.text = AllocString("Fill with Pattern...");
+      sub.shortcut = nullptr;
+      sub.enabled = hasSelection;
+      sub.checked = false;
+      sub.separator = false;
+      sub.id = ID_FILL_PATTERN;
+      fillItem.submenu.push_back(sub);
+    }
 
-  Vector<ContextMenuItem> fillSubmenu;
+    state.items.push_back(fillItem);
+  }
 
-  ContextMenuItem fillZerosItem;
-  fillZerosItem.text = (char *)"Fill with Zeros";
-  fillZerosItem.shortcut = (char *)"";
-  fillZerosItem.enabled = hasSelection;
-  fillZerosItem.checked = false;
-  fillZerosItem.separator = false;
-  fillZerosItem.id = ID_FILL_ZEROS;
-  fillSubmenu.push_back(fillZerosItem);
-
-  ContextMenuItem fillFFItem;
-  fillFFItem.text = (char *)"Fill with 0xFF";
-  fillFFItem.shortcut = (char *)"";
-  fillFFItem.enabled = hasSelection;
-  fillFFItem.checked = false;
-  fillFFItem.separator = false;
-  fillFFItem.id = ID_FILL_FF;
-  fillSubmenu.push_back(fillFFItem);
-
-  ContextMenuItem fillPatternItem;
-  fillPatternItem.text = (char *)"Fill with Pattern...";
-  fillPatternItem.shortcut = (char *)"";
-  fillPatternItem.enabled = hasSelection;
-  fillPatternItem.checked = false;
-  fillPatternItem.separator = false;
-  fillPatternItem.id = ID_FILL_PATTERN;
-  fillSubmenu.push_back(fillPatternItem);
-
-  ContextMenuItem fillItem;
-  fillItem.text = (char *)"Fill Selection";
-  fillItem.shortcut = (char *)"";
-  fillItem.enabled = hasSelection;
-  fillItem.checked = false;
-  fillItem.separator = false;
-  fillItem.id = ID_FILL;
-  fillItem.submenu = fillSubmenu;
-  state.items.push_back(fillItem);
-
-  ContextMenuItem bookmarkItem;
-  bookmarkItem.text = (char *)"Add Bookmark";
-  bookmarkItem.shortcut = (char *)"";
-  bookmarkItem.enabled = hasData && hasCursor;
-  bookmarkItem.checked = false;
-  bookmarkItem.separator = false;
-  bookmarkItem.id = ID_ADD_BOOKMARK;
-  state.items.push_back(bookmarkItem);
-}
-*/
-
-void AppContextMenu::show(int x, int y)
-{
-    MessageBoxA(g_Hwnd, "show() start", "Debug", MB_OK);
-    
-    state.visible = true;
-    MessageBoxA(g_Hwnd, "visible set", "Debug", MB_OK);
-    
-    state.x = x;
-    state.y = y;
-    MessageBoxA(g_Hwnd, "position set", "Debug", MB_OK);
-    
-    state.hoveredIndex = -1;
-    state.openSubmenuIndex = -1;
-    MessageBoxA(g_Hwnd, "indices set", "Debug", MB_OK);
-    
-    state.items.clear();
-    MessageBoxA(g_Hwnd, "items cleared", "Debug", MB_OK);
-    
-    bool hasSelection = (selectionLength > 0);
-    bool hasData = !g_HexData.isEmpty();
-    bool hasCursor = (cursorBytePos != -1);
-    MessageBoxA(g_Hwnd, "flags set", "Debug", MB_OK);
-    
-    ContextMenuItem copyItem;
-    MessageBoxA(g_Hwnd, "copyItem created", "Debug", MB_OK);
-    
-    copyItem.text = (char *)"Copy";
-    MessageBoxA(g_Hwnd, "text assigned", "Debug", MB_OK);
-    
-    copyItem.shortcut = (char *)"Ctrl+C";
-    MessageBoxA(g_Hwnd, "shortcut assigned", "Debug", MB_OK);
-    
-    copyItem.enabled = hasSelection;
-    copyItem.checked = false;
-    copyItem.separator = false;
-    copyItem.id = ID_COPY;
-    MessageBoxA(g_Hwnd, "copyItem fields set", "Debug", MB_OK);
-    
-    state.items.push_back(copyItem);
-    MessageBoxA(g_Hwnd, "copyItem pushed", "Debug", MB_OK);
-    state.items.push_back(copyItem);
-MessageBoxA(g_Hwnd, "copyItem pushed", "Debug", MB_OK);
-
-Vector<ContextMenuItem> copySubmenu;
-MessageBoxA(g_Hwnd, "copySubmenu created", "Debug", MB_OK);
+  {
+    ContextMenuItem item;
+    item.text = AllocString("Add Bookmark");
+    item.shortcut = nullptr;
+    item.enabled = hasData && hasCursor;
+    item.checked = false;
+    item.separator = false;
+    item.id = ID_ADD_BOOKMARK;
+    state.items.push_back(item);
+  }
 }
 
 void AppContextMenu::hide()
@@ -653,7 +628,6 @@ static void GoToOffsetCallback(int offset)
     int bytesPerLine = g_HexData.getCurrentBytesPerLine();
     int targetRow = offset / bytesPerLine;
     g_ScrollY = Clamp(targetRow - 5, 0, maxScrolls);
-
 
     InvalidateWindow();
   }
@@ -866,7 +840,7 @@ void AppContextMenu::executeAction(int actionId)
         });
 #else
     SearchDialogs::ShowGoToDialog(
-        (void*)g_window,
+        (void *)g_window,
         g_Options.darkMode,
         [](int offset)
         {
